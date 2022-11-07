@@ -11,6 +11,11 @@
 
 (in-package :jso)
 
+(export '(jscl::oget jscl::concat
+          jscl::lisp-to-js jscl::js-to-lisp
+          jscl::vector-to-list jscl::list-to-vector))
+
+
 ;;; name convertor
 ;;;
 ;;; (%nc :a) => "A"
@@ -216,6 +221,7 @@
 
 ;;; (jso:get-prop (obj "aaa" "bbb" "ccc"))
 ;;; => (oget obj "aaa" "bbb" "ccc")
+;;; :todo:
 (export '(jso::get-prop))
 (defmacro get-prop ((obj &rest pathes))
   ;; obj - js object
@@ -228,6 +234,7 @@
 ;;; (jso::set-prop (obj "aaa" "bbb" "ccc") "place")
 ;;; obj => {aaa: {bbb: {ccc: "place"}}}
 (export '(jso::set-prop))
+;;; todo:
 (defmacro set-prop ((obj &rest pathes) &body values)
   ;; obj - js object
   ;; pathes - string | string*
@@ -245,9 +252,13 @@
 ;;; (jso:@ ship.name)` eq (jscl::oget ship "name") or (jso:get-prop ship "name")
 ;;; (jso:@ ship.name "Santa Maria") eq (setf (jscl::oget ship "name") "Santa Maria")
 ;;;                             or (jso:set-prop ship "name" "Santa Maria")
+
+#+kass
 (export '(jso::@))
+
+#+kass
 (defmacro @ (name &optional value)
-    (check-type name strig)
+    ;; todo: (check-type name string)
     (let* ((path (call-meth ((jscl::lisp-to-js (symbol-name name)) "toLowerCase")))
            (pathname (jscl::vector-to-list (%split-str-by-dot path)))
            (varname (intern (call-meth ((jscl::lisp-to-js (car pathname)) "toUpperCase")))))
@@ -264,7 +275,10 @@
 ;;;   Ship.deadweight = 200000.0
 ;;; JSCL
 ;;;   (jso:@j -ship.name "Santa Maria") eq (setf (jscl::oget #j:Ship "name") "Santa Maria")
+#+kass
 (export '(jso::@j))
+
+#+kass
 (defmacro @j (name &optional value)
     (let* ((path (call-meth ((jscl::lisp-to-js (symbol-name name)) "toLowerCase")))
            (pathname (jscl::vector-to-list (split-str-by-dot path)))
@@ -422,21 +436,23 @@
              ,@(jscl::%lmapcar (lambda (it) (%set-props `,owns `,it)) `,props) )))
 
 
-(defmacro {} (&rest n) `(jscl::new))
-(defmacro {n} (&rest p) `(jso:make-obj ,@p))
-(defmacro {l} (o) `(jso:to-list ,o))
-(defmacro {i} (o f) `(jso:iter ,o ,f))
-(defmacro {f} (o (&rest n) &rest a) `(funcall ({g} ,o ,@n) ,@a))
-(defmacro {g} (&rest n) (if (null `,n) nil) `(jscl::oget ,(car n) ,@(cdr n)))
-(defmacro {s} ((r &rest n) &rest a) `(setf (jscl::oget ,r ,@n) ,@a))
-(defmacro {JL} (o) `(jscl::js-to-lisp ,o))
-(defmacro {LJ} (o) `(jscl::lisp-to-js ,o))
-(defmacro {VL} (o) `(jscl::%lmapcar #'jscl::js-to-lisp (jscl::vector-to-list ,o)))
-(defmacro {LV} (o) `(jscl::list-to-vector (jscl::%lmpacar #'jscl::lisp-to-js  ,o)))
-(defmacro {mk} (&rest e) `(jso:make-obj ,@e))
-(defmacro {k} (o) `(#j:Object:keys ,o))
-(defmacro {i} (o f) `(jso:iter ,o ,f))
 
+#+kass (defmacro {} (&rest n) `(jscl::new))
+#+kass (defmacro {n} (&rest p) `(jso:make-obj ,@p))
+#+kass (defmacro {l} (o) `(jso:to-list ,o))
+#+kass (defmacro {i} (o f) `(jso:iter ,o ,f))
+#+kass (defmacro {f} (o (&rest n) &rest a) `(funcall ({g} ,o ,@n) ,@a))
+#+kass (defmacro {g} (&rest n) (if (null `,n) nil) `(jscl::oget ,(car n) ,@(cdr n)))
+#+kass (defmacro {s} ((r &rest n) &rest a) `(setf (jscl::oget ,r ,@n) ,@a))
+#+kass (defmacro {JL} (o) `(jscl::js-to-lisp ,o))
+#+kass (defmacro {LJ} (o) `(jscl::lisp-to-js ,o))
+#+kass (defmacro {VL} (o) `(jscl::%lmapcar #'jscl::js-to-lisp (jscl::vector-to-list ,o)))
+#+kass (defmacro {LV} (o) `(jscl::list-to-vector (jscl::%lmpacar #'jscl::lisp-to-js  ,o)))
+#+kass (defmacro {mk} (&rest e) `(jso:make-obj ,@e))
+#+kass (defmacro {k} (o) `(#j:Object:keys ,o))
+#+kass (defmacro {i} (o f) `(jso:iter ,o ,f))
+
+#+kass
 (export '(jso::{}
           jso::{n}
           jso::{l}
