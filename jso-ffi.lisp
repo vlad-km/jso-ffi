@@ -53,13 +53,14 @@
 ;;; make JS object without Object definitions
 ;;;
 ;;; (%prepare-object-slots name age her-name-is (weight 68) (height 170))
+#+nil
 (defun %prepare-object-slots (slots)
   (let ((pairs
           (jscl::%lmapcar
            (lambda (it)
              (cond ((atom it) (list (%nc it) nil))
                    ((listp it)  (list (%nc (car it)) (cadr it)))
-                   (t (error "MAKE-OBJ: Bad object slot ~a." it))))
+                   (t (error "MAKE-OBJ: bad object slot ~a." it))))
            slots)))
     (apply 'append pairs)))
 
@@ -68,14 +69,14 @@
 ;;; => {A:1, bC: 2, aB: 3}
 (defun %make-obj (&rest kv-seq)
   (if (oddp (length kv-seq))
-      (error "MAKE-OBJ: Too few arguments."))
+      (error "MAKE-OBJ: too few arguments."))
   (let ((object (jscl::new)))
     (loop for (key value) on kv-seq by (function cddr) do
           (typecase key
             (symbol (setq key (%nc key)))
             (string t)
             (integer t)
-            (t (error "MAKE-OBJ: Bad object key type ~a." key)))
+            (t (error "MAKE-OBJ: bad object key type ~a." key)))
           (setf (jscl::oget object key) value))
     object))
 
@@ -84,7 +85,63 @@
 
 (export '(jso::mko))
 ;;; (jso:mko :a (:b 2) :c "| |")
-(defmacro mko (&rest args) `(apply '%make-obj ',(%prepare-object-slots `,args)))
+(defun macro-function (symbol)
+  (let* ((b (jscl::lookup-in-lexenv symbol jscl::*environment* 'function)))
+    (if (and b (eql (jscl::binding-type b) jscl::macro))
+        (jscl::binding-value b)
+      nil)))
+
+
+(defun %explore-dob (l)
+  (let ((s (car l)))
+    (cond ((stringp s)
+           ;; ("a")|("a" "b")
+           (if (not (jscl::proper-list-length-p l 1 2))
+               (error "bad ~s" l))
+           (cond ((jscl::singleton-p l)
+                  (append l '(nil)))
+                 (t l)))
+          ((symbolp s)
+           ;; (:s) |(:k 1)|(fn) | (fn a1 ... an)
+           ;;(print (list :symbol l))
+           (if (or (handler-case (symbol-function s) (error (m) nil))
+                   (macro-function s))
+               ;;(print 'symbol-f-m)
+               ;; funcall
+               (progn (print :funcall)(list l))
+             ;; length validate for symbolic expr
+             (cond ((jscl::proper-list-length-p l 1)
+                    (append (list (symbol-name s)) '(nil)))
+                   ((jscl::proper-list-length-p l 2)
+                    (setf (first l)(symbol-name s))
+                    l)
+                   (t (error "bad ~s" l)))))
+          (t (error "bad ~s" l)))))
+
+
+(defun %prepare-object-slots (slots)
+  (let ((pairs
+         (jscl::%lmapcar
+          (lambda (it)
+            (print it)
+            (typecase it
+              ((symbol) (list (jso::%nc it) nil))
+              ((string) (list (jso::%nc it) nil))
+              ((list)  (%explore-dob it))
+              (t  (error "MAKE-OBJ: bad object slot ~a." it))))
+          slots)))
+    ;;(print pairs)
+    (apply 'append pairs)))
+
+(defmacro mko (&rest args)
+    (let ((exp (%prepare-object-slots `,args))
+          (p))
+      (setq exp (push 'list exp))
+      (setq p `(apply 'jso::%make-obj   ,exp))
+      ;;(print p)
+      ;;(terpri)
+      `(progn
+         ,p)))
 
 ;;; js object iterator
 ;;; (iter obj  #'(lambda (key val) (print val)) )
@@ -96,8 +153,13 @@
   (jscl::%lmapcar (lambda (key)
                     (funcall fn key (jscl::oget jso key)))
    (jscl::%lmapcar #'jscl::js-to-lisp
+<<<<<<< Updated upstream
                    (jscl::vector-to-list (#j:Object:keys jso))))
   nil)
+=======
+                   (jscl::vector-to-list (#j:Object:keys jso)))))
+
+>>>>>>> Stashed changes
 
 ;;; Return object keys
 ;;; => ("bbb" "aaa")
@@ -190,6 +252,10 @@
 ;;;                             or (jso:set-prop ship "name" "Santa Maria")
 (export '(jso::@))
 (defmacro @ (name &optional value)
+<<<<<<< Updated upstream
+=======
+    (check-type name strig)
+>>>>>>> Stashed changes
     (let* ((path (call-meth ((jscl::lisp-to-js (symbol-name name)) "toLowerCase")))
            (pathname (jscl::vector-to-list (%split-str-by-dot path)))
            (varname (intern (call-meth ((jscl::lisp-to-js (car pathname)) "toUpperCase")))))
@@ -340,7 +406,7 @@
               (:constructor (setq constructor (%do-constructor-clause (cdr it))))
               (:method (multiple-value-bind (name code) (%do-method-clause (cdr it))
                            (push (list name code) methods)))
-              (otherwise (error "DEFOBJECT: unknow clause ~a" (car it)))))
+              (otherwise (error "DEFOBJECT: unknow clause ~a." (car it)))))
         (setq owns (append name (list "prototype")))
         (if constructor
             (setq constructor-code `((setf ,name ,constructor)))
@@ -364,6 +430,36 @@
              ,@(jscl::%lmapcar (lambda (it) (%set-props `,owns `,it)) `,props) )))
 
 
-(in-package "CL-USER")
+(defmacro {} (&rest n) `(jscl::new))
+(defmacro {n} (&rest p) `(jso:make-obj ,@p))
+(defmacro {l} (o) `(jso:to-list ,o))
+(defmacro {i} (o f) `(jso:iter ,o ,f))
+(defmacro {f} (o (&rest n) &rest a) `(funcall ({g} ,o ,@n) ,@a))
+(defmacro {g} (&rest n) (if (null `,n) nil) `(jscl::oget ,(car n) ,@(cdr n)))
+(defmacro {s} ((r &rest n) &rest a) `(setf (jscl::oget ,r ,@n) ,@a))
+(defmacro {JL} (o) `(jscl::js-to-lisp ,o))
+(defmacro {LJ} (o) `(jscl::lisp-to-js ,o))
+(defmacro {VL} (o) `(jscl::%lmapcar #'jscl::js-to-lisp (jscl::vector-to-list ,o)))
+(defmacro {LV} (o) `(jscl::list-to-vector (jscl::%lmpacar #'jscl::lisp-to-js  ,o)))
+(defmacro {mk} (&rest e) `(jso:make-obj ,@e))
+(defmacro {k} (o) `(#j:Object:keys ,o))
+(defmacro {i} (o f) `(jso:iter ,o ,f))
+
+(export '(jso::{}
+          jso::{n}
+          jso::{l}
+          jso::{I}
+          jso::{f}
+          jso::{g}
+          jso::{s}
+          jso::{JL}
+          jso:::{LJ}
+          jso::{VL}
+          jso::LV
+          jso::{MK}
+          jso::{k}
+          jso::{i}))
+
+(in-package :cl-user)
 
 ;;; EOF
