@@ -150,16 +150,11 @@
 ;;; nil
 (export '(jso::iter))
 (defun iter (jso fn)
-  (jscl::%lmapcar (lambda (key)
-                    (funcall fn key (jscl::oget jso key)))
+  (jscl::%lmapcar
+   (lambda (key)(funcall fn key (jscl::oget jso key)))
    (jscl::%lmapcar #'jscl::js-to-lisp
-<<<<<<< Updated upstream
-                   (jscl::vector-to-list (#j:Object:keys jso))))
-  nil)
-=======
                    (jscl::vector-to-list (#j:Object:keys jso)))))
 
->>>>>>> Stashed changes
 
 ;;; Return object keys
 ;;; => ("bbb" "aaa")
@@ -252,10 +247,7 @@
 ;;;                             or (jso:set-prop ship "name" "Santa Maria")
 (export '(jso::@))
 (defmacro @ (name &optional value)
-<<<<<<< Updated upstream
-=======
     (check-type name strig)
->>>>>>> Stashed changes
     (let* ((path (call-meth ((jscl::lisp-to-js (symbol-name name)) "toLowerCase")))
            (pathname (jscl::vector-to-list (%split-str-by-dot path)))
            (varname (intern (call-meth ((jscl::lisp-to-js (car pathname)) "toUpperCase")))))
