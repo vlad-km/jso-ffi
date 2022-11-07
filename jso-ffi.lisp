@@ -92,9 +92,24 @@
 ;;; (jso:mko :a (:b 2) :c "| |")
 (defun macro-function (symbol)
   (let* ((b (jscl::lookup-in-lexenv symbol jscl::*environment* 'function)))
-    (if (and b (eql (jscl::binding-type b) jscl::macro))
+    (if (and b (eql (jscl::binding-type b) `jscl::macro))
         (jscl::binding-value b)
       nil)))
+
+(defconstant +special-op+ '(block     let*                  return-from      
+                            catch      setq             
+                            eval-when  symbol-macrolet  
+                            flet       macrolet              tagbody          
+                            function   multiple-value-call   the              
+                            go         multiple-value-prog1  throw            
+                            if         progn                 unwind-protect   
+                            labels     progv                                  
+                            let        quote ))
+
+(defun special-operator-p (s)
+  (check-type s symbol)
+  (if (jscl::memq s +special-op+)
+      t))  
 
 
 (defun %explore-dob (l)
