@@ -1,8 +1,26 @@
 ;;; -*- mode:lisp; coding:utf-8 -*-
-;;;
+
+#|
+
+            /\___/\
+            )     (
+           =\     /=                  if this code is not work, i dont know who wrote this code
+             )   (                    Copyright © 2017,2018,2022  @vlad-km
+            /     \                   2017, Original https://github.com/vlad-km/moren-electron
+            )     (                   2022, Code redesign
+           /       \                  Electron >= electron@21.2.2
+           \       /                  JSCL >= version 0.8.2  
+      jgs   \__ __/
+               ))
+              //
+             ((
+              \)
+|#
+
+
 ;;; Package :JSO - API JS Object
-;;;
-;;; 2018, 2022 @vald-km
+
+
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
   (unless (find-package :jso)
@@ -16,11 +34,14 @@
           jscl::vector-to-list jscl::list-to-vector))
 
 
-;;; name convertor
+;;; name convertor from symbol to string
 ;;;
-;;; (%nc :a) => "A"
+;;; symbol := (%nc :a) => "A"
+;;;           (%nc 'a) => "a"
+;;;           (%nc '-a) => "A"
+;;;           (%nc 'a-a) => "aA"
 ;;; (%nc :|a-b|) => "aB"
-;;; (%nc :|a b c|) => "a_b_c"
+;;; (%nc :|a b c|) => "a_b_c" - not release
 ;;; (%nc "AbC" => "AbC")
 (defun %nc (name)
   (cond ((stringp name) (return-from %nc name))
@@ -56,22 +77,8 @@
      (return result)))
 
 ;;; make JS object without Object definitions
-;;;
-;;; (%prepare-object-slots name age her-name-is (weight 68) (height 170))
-#+nil
-(defun %prepare-object-slots (slots)
-  (let ((pairs
-          (jscl::%lmapcar
-           (lambda (it)
-             (cond ((atom it) (list (%nc it) nil))
-                   ((listp it)  (list (%nc (car it)) (cadr it)))
-                   (t (error "MAKE-OBJ: bad object slot ~a." it))))
-           slots)))
-    (apply 'append pairs)))
-
-;;; make js object
-;;; (jso:make :a 1 :|b-c| 2 :a-b 3)
-;;; => {A:1, bC: 2, aB: 3}
+;;; (%make-obj "a" 1 "b" 2 "c" (%make-obj "f" (lambda nil t)))
+;;; => {a: 1, b:2, c: {f: <fn>}}
 (defun %make-obj (&rest kv-seq)
   (if (oddp (length kv-seq))
       (error "MAKE-OBJ: too few arguments."))
@@ -90,13 +97,17 @@
 
 (export '(jso::mko))
 ;;; (jso:mko :a (:b 2) :c "| |")
-(defun macro-function (symbol)
+
+;;; todo: move to jscl:
+;;;       add (setf ) form
+(defun %macro-function (symbol &rest environment)
   (let* ((b (jscl::lookup-in-lexenv symbol jscl::*environment* 'function)))
     (if (and b (eql (jscl::binding-type b) `jscl::macro))
         (jscl::binding-value b)
       nil)))
 
-(defconstant +special-op+ '(block     let*                  return-from      
+#+kass
+(defconstant +special-ops+ '(block     let*                  return-from      
                             catch      setq             
                             eval-when  symbol-macrolet  
                             flet       macrolet              tagbody          
@@ -106,9 +117,10 @@
                             labels     progv                                  
                             let        quote ))
 
+#+kass
 (defun special-operator-p (s)
   (check-type s symbol)
-  (if (jscl::memq s +special-op+)
+  (if (first (member s +special-ops+))
       t))  
 
 
@@ -117,26 +129,23 @@
     (cond ((stringp s)
            ;; ("a")|("a" "b")
            (if (not (jscl::proper-list-length-p l 1 2))
-               (error "bad ~s" l))
+               (error "wrong pair ~s." l))
            (cond ((jscl::singleton-p l)
                   (append l '(nil)))
                  (t l)))
           ((symbolp s)
            ;; (:s) |(:k 1)|(fn) | (fn a1 ... an)
-           ;;(print (list :symbol l))
            (if (or (handler-case (symbol-function s) (error (m) nil))
-                   (macro-function s))
-               ;;(print 'symbol-f-m)
+                   (%macro-function s))
                ;; funcall
-               (progn (print :funcall)(list l))
-             ;; length validate for symbolic expr
-             (cond ((jscl::proper-list-length-p l 1)
-                    (append (list (symbol-name s)) '(nil)))
-                   ((jscl::proper-list-length-p l 2)
-                    (setf (first l)(symbol-name s))
-                    l)
-                   (t (error "bad ~s" l)))))
-          (t (error "bad ~s" l)))))
+               ;; length validate for symbolic expr
+               (cond ((jscl::proper-list-length-p l 1)
+                      (append (list (symbol-name s)) '(nil)))
+                     ((jscl::proper-list-length-p l 2)
+                      (setf (first l)(symbol-name s))
+                      l)
+                     (t (error "wrong length pair ~s" l)))))
+          (t (error "wrong type for name ~s." l)))))
 
 
 (defun %prepare-object-slots (slots)
@@ -148,9 +157,8 @@
               ((symbol) (list (jso::%nc it) nil))
               ((string) (list (jso::%nc it) nil))
               ((list)  (%explore-dob it))
-              (t  (error "MAKE-OBJ: bad object slot ~a." it))))
+              (t  (error "mko: bad object slot ~a." it))))
           slots)))
-    ;;(print pairs)
     (apply 'append pairs)))
 
 (defmacro mko (&rest args)
@@ -158,8 +166,6 @@
           (p))
       (setq exp (push 'list exp))
       (setq p `(apply 'jso::%make-obj   ,exp))
-      ;;(print p)
-      ;;(terpri)
       `(progn
          ,p)))
 
@@ -202,7 +208,7 @@
                                     (jscl::vector-to-list (#j:Object:keys jso))))))
 
 ;;; copies js object
-;;; returning a new object with inherite properties
+;;; returning a new object with inherite properties new <- old
 (export '(jso::copy))
 (defun copy (jso)
   (#j:Object:assign (jscl::new) jso))
@@ -217,26 +223,30 @@
 
 ;;; delete properties from obj
 ;;; use (delete-property key obj) from JSCL
+;;; todo: ({d} obj "propName")
 (export '(jso::delete-prop))
 (defun delete-prop (jso prop)
   (jscl::delete-property prop jso))
 
 
-;;; js object method call
-(export '(jso::bind-call-meth))
-(defmacro bind-call-meth ((obj &rest methods) &body args)
+;;; js object method bind args to current environment and call
+;;; todo: ({bc} obj ("p1" "p2" "p3") ...args)
+(export '(jso::bind-call))
+(defmacro bind-call ((obj &rest methods) &body args)
   `(funcall ((jscl::oget ,obj ,@methods "bind") ,obj ,@args)))
 
-(export '(jso::call-meth))
-(defmacro call-meth ((obj &rest methods) &body args)
+;;; js object method call without binding
+;;; todo: ({c} obj ("frob" "detProp") ...args)
+(export '(jso::call))
+(defmacro call ((obj &rest methods) &body args)
   `((jscl::oget ,obj ,@methods) ,@args))
 
 
 ;;; js object get/set macro
 
-;;; (jso:get-prop (obj "aaa" "bbb" "ccc"))
+;;; (jso:get-prop obj "aaa" "bbb" "ccc")
 ;;; => (oget obj "aaa" "bbb" "ccc")
-;;; :todo:
+;;; :todo: ({g} o "aaa" "bbb" "c")
 (export '(jso::get-prop))
 (defmacro get-prop ((obj &rest pathes))
   ;; obj - js object
@@ -249,12 +259,13 @@
 ;;; (jso::set-prop (obj "aaa" "bbb" "ccc") "place")
 ;;; obj => {aaa: {bbb: {ccc: "place"}}}
 (export '(jso::set-prop))
-;;; todo:
+;;; todo: ({s} o (n1 ..nN) .body)
 (defmacro set-prop ((obj &rest pathes) &body values)
   ;; obj - js object
   ;; pathes - string | string*
   `(setf (jscl::oget ,obj ,@pathes) ,@values))
 
+#+kass
 (defun %split-str-by-dot (str)
     (let ((path (jso:call-meth ((jscl::lisp-to-js str) "split") ".")))
         (dotimes (i (length path))
@@ -483,6 +494,8 @@
           jso::{k}
           jso::{i}))
 
+
+(push :jso *features*)
 (in-package :cl-user)
 
 ;;; EOF
