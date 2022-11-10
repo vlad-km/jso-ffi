@@ -265,55 +265,6 @@
   ;; pathes - string | string*
   `(setf (jscl::oget ,obj ,@pathes) ,@values))
 
-#+kass
-(defun %split-str-by-dot (str)
-    (let ((path (jso:call-meth ((jscl::lisp-to-js str) "split") ".")))
-        (dotimes (i (length path))
-            (setf (aref path i) (jscl::js-to-lisp (aref path i))))
-        path))
-
-;;; getter/setter local js object props short/special version
-;;;
-;;; (defvar ship (jso:make-obj "name" nil "deadweight" nil))
-;;; (jso:@ ship.name)` eq (jscl::oget ship "name") or (jso:get-prop ship "name")
-;;; (jso:@ ship.name "Santa Maria") eq (setf (jscl::oget ship "name") "Santa Maria")
-;;;                             or (jso:set-prop ship "name" "Santa Maria")
-
-#+kass
-(export '(jso::@))
-
-#+kass
-(defmacro @ (name &optional value)
-    ;; todo: (check-type name string)
-    (let* ((path (call-meth ((jscl::lisp-to-js (symbol-name name)) "toLowerCase")))
-           (pathname (jscl::vector-to-list (%split-str-by-dot path)))
-           (varname (intern (call-meth ((jscl::lisp-to-js (car pathname)) "toUpperCase")))))
-        (setq pathname (jscl::%lmapcar 'jso::%nc (rest pathname)))
-        (if value
-            `(set-prop (,varname ,@pathname) ,value)
-            `(get-prop (,varname ,@pathname)))))
-
-;;; getter/setter native js object props short/special version
-;;;
-;;; JS
-;;;   var Ship = {}
-;;;   Ship.name = "Santa Marai"
-;;;   Ship.deadweight = 200000.0
-;;; JSCL
-;;;   (jso:@j -ship.name "Santa Maria") eq (setf (jscl::oget #j:Ship "name") "Santa Maria")
-#+kass
-(export '(jso::@j))
-
-#+kass
-(defmacro @j (name &optional value)
-    (let* ((path (call-meth ((jscl::lisp-to-js (symbol-name name)) "toLowerCase")))
-           (pathname (jscl::vector-to-list (split-str-by-dot path)))
-           (varname (intern (call-meth ((jscl::lisp-to-js (car pathname)) "toUpperCase")))))
-        (setq varname  (%nc varname))
-        (setq pathname (jscl::%lmapcar '%nc (rest pathname)))
-        (if value
-            `(setf ,(append '(jscl::oget JSCL::*ROOT*) `(,varname) `,pathname) ,value)
-            `(jscl::oget JSCL::*ROOT* ,varname ,@pathname))))
 
 ;;; define js object property
 ;;; details see at:
