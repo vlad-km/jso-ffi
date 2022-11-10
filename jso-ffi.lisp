@@ -96,7 +96,6 @@
 (export '(jso::make-obj))
 
 (export '(jso::mko))
-;;; (jso:mko :a (:b 2) :c "| |")
 
 ;;; todo: move to jscl:
 ;;;       add (setf ) form
@@ -105,24 +104,6 @@
     (if (and b (eql (jscl::binding-type b) `jscl::macro))
         (jscl::binding-value b)
       nil)))
-
-#+kass
-(defconstant +special-ops+ '(block     let*                  return-from      
-                            catch      setq             
-                            eval-when  symbol-macrolet  
-                            flet       macrolet              tagbody          
-                            function   multiple-value-call   the              
-                            go         multiple-value-prog1  throw            
-                            if         progn                 unwind-protect   
-                            labels     progv                                  
-                            let        quote ))
-
-#+kass
-(defun special-operator-p (s)
-  (check-type s symbol)
-  (if (first (member s +special-ops+))
-      t))  
-
 
 (defun %explore-dob (l)
   (let ((s (car l)))
@@ -161,6 +142,7 @@
           slots)))
     (apply 'append pairs)))
 
+;;; (mko :a (b 22) "c" (d-d)) -> {a: false, b: 22, c: false, dD: false}
 (defmacro mko (&rest args)
     (let ((exp (%prepare-object-slots `,args))
           (p))
@@ -168,6 +150,8 @@
       (setq p `(apply 'jso::%make-obj   ,exp))
       `(progn
          ,p)))
+(export '(jso::mko))
+
 
 ;;; js object iterator
 ;;; (iter obj  #'(lambda (key val) (print val)) )
